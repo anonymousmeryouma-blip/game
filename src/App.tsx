@@ -1,715 +1,610 @@
-import React, { useState, useEffect } from 'react';
-import { Brain, Users, User, Trophy, Star, Play, Home, GamepadIcon, Lightbulb, Medal, Eye, EyeOff, MessageCircle, HelpCircle, CheckCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { 
+  GamepadIcon, 
+  Users, 
+  User, 
+  Home, 
+  Trophy, 
+  Settings,
+  Moon,
+  Sun,
+  Play,
+  RotateCcw,
+  CheckCircle,
+  XCircle,
+  Shuffle,
+  Eye,
+  EyeOff
+} from 'lucide-react';
 
-// Game Components
-const GameCard = ({ title, description, icon: Icon, players, difficulty, onClick, featured = false }) => (
-  <div 
-    className={`group relative overflow-hidden rounded-2xl cursor-pointer transition-all duration-500 hover:scale-105 hover:shadow-2xl ${
-      featured 
-        ? 'bg-gradient-to-br from-yellow-400 via-orange-500 to-red-500 col-span-2' 
-        : 'bg-gradient-to-br from-blue-600 via-purple-600 to-teal-600'
-    }`}
-    onClick={onClick}
-  >
-    <div className="absolute inset-0 bg-black/20 group-hover:bg-black/30 transition-all duration-300"></div>
-    <div className="relative p-8 text-white">
-      <div className="flex items-center gap-4 mb-4">
-        <div className={`p-3 rounded-xl bg-white/20 backdrop-blur-sm ${featured ? 'animate-pulse' : ''}`}>
-          <Icon size={32} />
-        </div>
-        {featured && (
-          <div className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-bold animate-bounce">
-            مميز ⭐
-          </div>
-        )}
-      </div>
-      <h3 className="text-2xl font-bold mb-3">{title}</h3>
-      <p className="text-white/90 mb-6 leading-relaxed">{description}</p>
-      <div className="flex gap-4 items-center">
-        <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-lg px-3 py-2">
-          <Users size={16} />
-          <span className="text-sm">{players}</span>
-        </div>
-        <div className="flex items-center gap-1">
-          {[...Array(difficulty)].map((_, i) => (
-            <Star key={i} size={16} fill="currentColor" />
-          ))}
-        </div>
-      </div>
-    </div>
-    <div className="absolute bottom-4 right-4 bg-white/20 backdrop-blur-sm rounded-full p-3 group-hover:scale-110 transition-all duration-300">
-      <Play size={20} fill="currentColor" />
-    </div>
-  </div>
-);
+type GameType = 'individual' | 'group';
+type Page = 'home' | 'individual' | 'group' | 'leaderboard' | 'settings';
 
-const BaraSalfaGame = ({ onBack }) => {
-  const [gamePhase, setGamePhase] = useState('setup'); // setup, playing, voting, reveal
-  const [players, setPlayers] = useState(['']);
-  const [currentWord, setCurrentWord] = useState('');
-  const [outsider, setOutsider] = useState('');
-  const [playerCards, setPlayerCards] = useState({});
-  const [revealedCards, setRevealedCards] = useState({});
-  const [currentPlayer, setCurrentPlayer] = useState('');
-  const [votes, setVotes] = useState({});
-  const [gameResult, setGameResult] = useState('');
+interface Player {
+  id: number;
+  name: string;
+  role?: string;
+  isAlive?: boolean;
+}
 
-  const words = [
-    'مدرسة', 'مستشفى', 'مطعم', 'سوق', 'مسجد', 'بحر', 'جبل', 'سيارة', 'طائرة', 'قطار',
-    'كتاب', 'قلم', 'هاتف', 'تلفاز', 'كمبيوتر', 'كرة', 'لعبة', 'فيلم', 'أغنية', 'رقص',
-    'طبخ', 'أكل', 'شرب', 'نوم', 'عمل', 'دراسة', 'سفر', 'رياضة', 'موسيقى', 'رسم',
-    'عائلة', 'أصدقاء', 'حب', 'زواج', 'أطفال', 'والدين', 'أخوة', 'جيران', 'زملاء', 'معلم'
+interface Question {
+  id: number;
+  text: string;
+  options: string[];
+  correctAnswer: number;
+}
+
+const App: React.Component = () => {
+  const [currentPage, setCurrentPage] = useState<Page>('home');
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  
+  // Individual games state
+  const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
+  const [showResult, setShowResult] = useState(false);
+  const [score, setScore] = useState(0);
+  const [gameStarted, setGameStarted] = useState(false);
+  
+  // Group games state
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [newPlayerName, setNewPlayerName] = useState('');
+  const [gamePhase, setGamePhase] = useState<'setup' | 'playing' | 'finished'>('setup');
+  const [currentGame, setCurrentGame] = useState<string>('');
+
+  const questions: Question[] = [
+    {
+      id: 1,
+      text: "ما هي عاصمة تونس؟",
+      options: ["صفاقس", "تونس", "سوسة", "قابس"],
+      correctAnswer: 1
+    },
+    {
+      id: 2,
+      text: "كم عدد أيام السنة؟",
+      options: ["364", "365", "366", "367"],
+      correctAnswer: 1
+    },
+    {
+      id: 3,
+      text: "ما هو أكبر كوكب في المجموعة الشمسية؟",
+      options: ["الأرض", "المريخ", "المشتري", "زحل"],
+      correctAnswer: 2
+    }
   ];
 
-  const startGame = () => {
-    if (players.filter(p => p.trim()).length >= 3) {
-      const activePlayers = players.filter(p => p.trim());
-      const randomWord = words[Math.floor(Math.random() * words.length)];
-      const randomOutsider = activePlayers[Math.floor(Math.random() * activePlayers.length)];
-      
-      setCurrentWord(randomWord);
-      setOutsider(randomOutsider);
-      
-      // توزيع البطاقات
-      const cards = {};
-      activePlayers.forEach(player => {
-        cards[player] = player === randomOutsider ? 'دخيل' : randomWord;
-      });
-      
-      setPlayerCards(cards);
-      setRevealedCards({});
-      setGamePhase('playing');
-      setCurrentPlayer(activePlayers[0]);
+  const loupGarouRoles = [
+    "ذئب", "قروي", "عراف", "طبيب", "صياد", "ساحرة", "حارس", "عمدة"
+  ];
+
+  const handleAnswerSelect = (answerIndex: number) => {
+    setSelectedAnswer(answerIndex);
+    setShowResult(true);
+    
+    if (answerIndex === questions[currentQuestion].correctAnswer) {
+      setScore(score + 1);
     }
-  };
-
-  const revealCard = (player) => {
-    setRevealedCards(prev => ({
-      ...prev,
-      [player]: true
-    }));
-  };
-
-  const hideCard = (player) => {
-    setRevealedCards(prev => ({
-      ...prev,
-      [player]: false
-    }));
-  };
-
-  const startVoting = () => {
-    setGamePhase('voting');
-    setVotes({});
-  };
-
-  const vote = (voter, suspect) => {
-    setVotes(prev => ({
-      ...prev,
-      [voter]: suspect
-    }));
-  };
-
-  const revealResults = () => {
-    setGamePhase('reveal');
     
-    // حساب الأصوات
-    const voteCount = {};
-    Object.values(votes).forEach(suspect => {
-      voteCount[suspect] = (voteCount[suspect] || 0) + 1;
-    });
-    
-    const mostVoted = Object.keys(voteCount).reduce((a, b) => 
-      voteCount[a] > voteCount[b] ? a : b
-    );
-    
-    if (mostVoted === outsider) {
-      setGameResult('فاز اللاعبون العاديون! تم اكتشاف الدخيل 🎉');
-    } else {
-      setGameResult('فاز الدخيل! لم يتم اكتشافه 🕵️');
-    }
+    setTimeout(() => {
+      if (currentQuestion < questions.length - 1) {
+        setCurrentQuestion(currentQuestion + 1);
+        setSelectedAnswer(null);
+        setShowResult(false);
+      } else {
+        setGameStarted(false);
+        setCurrentQuestion(0);
+      }
+    }, 2000);
   };
 
-  const resetGame = () => {
-    setGamePhase('setup');
-    setPlayers(['']);
-    setCurrentWord('');
-    setOutsider('');
-    setPlayerCards({});
-    setRevealedCards({});
-    setVotes({});
-    setGameResult('');
+  const startIndividualGame = () => {
+    setGameStarted(true);
+    setScore(0);
+    setCurrentQuestion(0);
+    setSelectedAnswer(null);
+    setShowResult(false);
   };
 
   const addPlayer = () => {
-    setPlayers([...players, '']);
+    if (newPlayerName.trim()) {
+      setPlayers([...players, { id: Date.now(), name: newPlayerName.trim() }]);
+      setNewPlayerName('');
+    }
   };
 
-  const updatePlayer = (index, value) => {
-    const newPlayers = [...players];
-    newPlayers[index] = value;
-    setPlayers(newPlayers);
+  const removePlayer = (id: number) => {
+    setPlayers(players.filter(p => p.id !== id));
   };
 
-  if (gamePhase === 'setup') {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-teal-900">
-        <div className="container mx-auto px-6 py-8">
-          <button
-            onClick={onBack}
-            className="mb-8 bg-white/20 backdrop-blur-sm text-white px-6 py-3 rounded-xl hover:bg-white/30 transition-all duration-300 flex items-center gap-2"
-          >
-            <Home size={20} />
-            العودة للرئيسية
-          </button>
-          
-          <div className="max-w-2xl mx-auto bg-white/10 backdrop-blur-lg rounded-3xl p-8 border border-white/20">
-            <div className="text-center mb-8">
-              <h1 className="text-4xl font-bold text-white mb-4">🕵️ برا السالفة</h1>
-              <p className="text-white/80 text-lg">اللعبة الجزائرية الأصيلة للذكاء والخداع</p>
-              <div className="mt-4 p-4 bg-yellow-500/20 rounded-xl border border-yellow-500/30">
-                <p className="text-yellow-200 text-sm">
-                  <strong>طريقة اللعب:</strong> سيتم اختيار لاعب واحد كـ"دخيل" سراً. باقي اللاعبين سيحصلون على نفس الكلمة. 
-                  الهدف: اكتشاف من هو الدخيل قبل أن يكتشف الكلمة!
-                </p>
-              </div>
-            </div>
-            
-            <div className="space-y-6">
-              <h3 className="text-xl font-bold text-white">أضف اللاعبين (3 لاعبين على الأقل):</h3>
-              {players.map((player, index) => (
-                <input
-                  key={index}
-                  type="text"
-                  value={player}
-                  onChange={(e) => updatePlayer(index, e.target.value)}
-                  placeholder={`اللاعب ${index + 1}`}
-                  className="w-full p-4 rounded-xl bg-white/20 backdrop-blur-sm text-white placeholder-white/60 border border-white/30 focus:border-white/50 focus:outline-none focus:ring-2 focus:ring-white/20"
-                />
-              ))}
-              
-              <div className="flex gap-4">
-                <button
-                  onClick={addPlayer}
-                  className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 text-white py-4 rounded-xl font-bold hover:from-green-600 hover:to-emerald-700 transition-all duration-300 transform hover:scale-105"
-                >
-                  إضافة لاعب
-                </button>
-                <button
-                  onClick={startGame}
-                  disabled={players.filter(p => p.trim()).length < 3}
-                  className="flex-1 bg-gradient-to-r from-orange-500 to-red-600 text-white py-4 rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:from-orange-600 hover:to-red-700 transition-all duration-300 transform hover:scale-105 disabled:hover:scale-100"
-                >
-                  ابدأ اللعبة 🚀
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const startLoupGarou = () => {
+    if (players.length < 4) {
+      alert('يجب أن يكون هناك على الأقل 4 لاعبين');
+      return;
+    }
+    
+    const shuffledRoles = [...loupGarouRoles].sort(() => Math.random() - 0.5);
+    const updatedPlayers = players.map((player, index) => ({
+      ...player,
+      role: shuffledRoles[index % shuffledRoles.length],
+      isAlive: true
+    }));
+    
+    setPlayers(updatedPlayers);
+    setGamePhase('playing');
+    setCurrentGame('loup-garou');
+  };
 
-  if (gamePhase === 'playing') {
-    const activePlayers = Object.keys(playerCards);
+  const startMakeshGame = () => {
+    if (players.length < 3) {
+      alert('يجب أن يكون هناك على الأقل 3 لاعبين');
+      return;
+    }
+    
+    const shuffledPlayers = [...players].sort(() => Math.random() - 0.5);
+    const outsider = shuffledPlayers[0];
+    const updatedPlayers = shuffledPlayers.map(player => ({
+      ...player,
+      role: player.id === outsider.id ? 'الغريب' : 'من الحومة'
+    }));
+    
+    setPlayers(updatedPlayers);
+    setGamePhase('playing');
+    setCurrentGame('makesh');
+  };
+
+  const resetGame = () => {
+    setPlayers([]);
+    setGamePhase('setup');
+    setCurrentGame('');
+  };
+
+  const Button = ({ 
+    children, 
+    onClick, 
+    variant = 'primary', 
+    size = 'md',
+    disabled = false,
+    className = ''
+  }: {
+    children: React.ReactNode;
+    onClick?: () => void;
+    variant?: 'primary' | 'secondary' | 'success' | 'danger' | 'outline';
+    size?: 'sm' | 'md' | 'lg';
+    disabled?: boolean;
+    className?: string;
+  }) => {
+    const baseClasses = "font-semibold rounded-xl transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl";
+    
+    const variants = {
+      primary: "bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white",
+      secondary: "bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white",
+      success: "bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white",
+      danger: "bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 text-white",
+      outline: "border-2 border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white bg-transparent"
+    };
+    
+    const sizes = {
+      sm: "px-4 py-2 text-sm",
+      md: "px-6 py-3 text-base",
+      lg: "px-8 py-4 text-lg"
+    };
     
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-teal-900">
-        <div className="container mx-auto px-6 py-8">
-          <button
-            onClick={onBack}
-            className="mb-8 bg-white/20 backdrop-blur-sm text-white px-6 py-3 rounded-xl hover:bg-white/30 transition-all duration-300 flex items-center gap-2"
-          >
-            <Home size={20} />
-            العودة للرئيسية
-          </button>
+      <button
+        onClick={onClick}
+        disabled={disabled}
+        className={`${baseClasses} ${variants[variant]} ${sizes[size]} ${disabled ? 'opacity-50 cursor-not-allowed transform-none' : ''} ${className}`}
+      >
+        {children}
+      </button>
+    );
+  };
+
+  const Card = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
+    <div className={`bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 transition-all duration-300 hover:shadow-2xl ${className}`}>
+      {children}
+    </div>
+  );
+
+  const renderNavigation = () => (
+    <nav className="bg-white dark:bg-gray-800 shadow-lg border-b border-gray-200 dark:border-gray-700">
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="flex justify-between items-center h-16">
+          <div className="flex items-center space-x-4 rtl:space-x-reverse">
+            <GamepadIcon className="w-8 h-8 text-blue-500" />
+            <h1 className="text-xl font-bold text-gray-800 dark:text-white">خمم فيها</h1>
+          </div>
           
-          <div className="max-w-6xl mx-auto">
-            <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold text-white mb-4">🎭 مرحلة اللعب</h2>
-              <p className="text-white/80 text-lg mb-6">اضغط على بطاقتك لرؤية كلمتك، ثم ابدأ النقاش!</p>
-              <button
-                onClick={startVoting}
-                className="bg-gradient-to-r from-red-500 to-pink-600 text-white px-8 py-4 rounded-xl font-bold hover:from-red-600 hover:to-pink-700 transition-all duration-300 transform hover:scale-105"
-              >
-                بدء التصويت 🗳️
-              </button>
-            </div>
+          <div className="flex items-center space-x-6 rtl:space-x-reverse">
+            <button
+              onClick={() => setCurrentPage('home')}
+              className={`flex items-center space-x-2 rtl:space-x-reverse px-4 py-2 rounded-lg transition-all duration-200 ${
+                currentPage === 'home' 
+                  ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300' 
+                  : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+            >
+              <Home className="w-5 h-5" />
+              <span>الرئيسية</span>
+            </button>
             
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {activePlayers.map((player) => (
-                <div key={player} className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20">
-                  <div className="text-center">
-                    <h3 className="text-xl font-bold text-white mb-4">{player}</h3>
-                    
-                    <div className="mb-6">
-                      {revealedCards[player] ? (
-                        <div className="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-xl p-6 mb-4">
-                          <p className="text-2xl font-bold text-gray-900">
-                            {playerCards[player]}
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="bg-gradient-to-r from-gray-600 to-gray-700 rounded-xl p-6 mb-4 cursor-pointer hover:from-gray-500 hover:to-gray-600 transition-all duration-300">
-                          <p className="text-xl text-white">🎴 بطاقة مخفية</p>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => revealCard(player)}
-                        className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 text-white py-3 rounded-xl font-bold hover:from-green-600 hover:to-emerald-700 transition-all duration-300 flex items-center justify-center gap-2"
-                      >
-                        <Eye size={16} />
-                        كشف
-                      </button>
-                      <button
-                        onClick={() => hideCard(player)}
-                        className="flex-1 bg-gradient-to-r from-gray-500 to-gray-600 text-white py-3 rounded-xl font-bold hover:from-gray-600 hover:to-gray-700 transition-all duration-300 flex items-center justify-center gap-2"
-                      >
-                        <EyeOff size={16} />
-                        إخفاء
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <button
+              onClick={() => setCurrentPage('individual')}
+              className={`flex items-center space-x-2 rtl:space-x-reverse px-4 py-2 rounded-lg transition-all duration-200 ${
+                currentPage === 'individual' 
+                  ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300' 
+                  : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+            >
+              <User className="w-5 h-5" />
+              <span>ألعاب فردية</span>
+            </button>
             
-            <div className="mt-12 bg-white/10 backdrop-blur-lg rounded-2xl p-8 border border-white/20">
-              <h3 className="text-2xl font-bold text-white mb-4 text-center">💬 مرحلة النقاش</h3>
-              <div className="grid md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <h4 className="text-lg font-bold text-white">نصائح للاعبين العاديين:</h4>
-                  <ul className="text-white/80 space-y-2">
-                    <li>• اطرح أسئلة غامضة حول الكلمة</li>
-                    <li>• لاحظ من يبدو مرتبكاً أو يتجنب الإجابة</li>
-                    <li>• تعاون مع الآخرين لكشف الدخيل</li>
-                  </ul>
-                </div>
-                <div className="space-y-4">
-                  <h4 className="text-lg font-bold text-white">نصائح للدخيل:</h4>
-                  <ul className="text-white/80 space-y-2">
-                    <li>• اطرح أسئلة عامة لتعرف الكلمة</li>
-                    <li>• تظاهر بأنك تعرف الكلمة</li>
-                    <li>• حاول توجيه الشك لآخرين</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
+            <button
+              onClick={() => setCurrentPage('group')}
+              className={`flex items-center space-x-2 rtl:space-x-reverse px-4 py-2 rounded-lg transition-all duration-200 ${
+                currentPage === 'group' 
+                  ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300' 
+                  : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+            >
+              <Users className="w-5 h-5" />
+              <span>ألعاب جماعية</span>
+            </button>
+            
+            <button
+              onClick={() => setCurrentPage('leaderboard')}
+              className={`flex items-center space-x-2 rtl:space-x-reverse px-4 py-2 rounded-lg transition-all duration-200 ${
+                currentPage === 'leaderboard' 
+                  ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300' 
+                  : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+            >
+              <Trophy className="w-5 h-5" />
+              <span>المتصدرين</span>
+            </button>
+            
+            <button
+              onClick={() => setIsDarkMode(!isDarkMode)}
+              className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200"
+            >
+              {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
           </div>
         </div>
       </div>
-    );
-  }
+    </nav>
+  );
 
-  if (gamePhase === 'voting') {
-    const activePlayers = Object.keys(playerCards);
-    
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-teal-900">
-        <div className="container mx-auto px-6 py-8">
-          <button
-            onClick={onBack}
-            className="mb-8 bg-white/20 backdrop-blur-sm text-white px-6 py-3 rounded-xl hover:bg-white/30 transition-all duration-300 flex items-center gap-2"
-          >
-            <Home size={20} />
-            العودة للرئيسية
-          </button>
-          
-          <div className="max-w-4xl mx-auto">
-            <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold text-white mb-4">🗳️ مرحلة التصويت</h2>
-              <p className="text-white/80 text-lg mb-6">صوت لمن تعتقد أنه الدخيل!</p>
-            </div>
-            
-            <div className="grid md:grid-cols-2 gap-6 mb-8">
-              {activePlayers.map((voter) => (
-                <div key={voter} className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20">
-                  <h3 className="text-xl font-bold text-white mb-4 text-center">{voter}</h3>
-                  <div className="space-y-3">
-                    {activePlayers.filter(p => p !== voter).map((suspect) => (
-                      <button
-                        key={suspect}
-                        onClick={() => vote(voter, suspect)}
-                        className={`w-full p-3 rounded-xl font-bold transition-all duration-300 ${
-                          votes[voter] === suspect
-                            ? 'bg-gradient-to-r from-red-500 to-pink-600 text-white'
-                            : 'bg-white/20 text-white hover:bg-white/30'
-                        }`}
-                      >
-                        {suspect} {votes[voter] === suspect && '✓'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-            
-            <div className="text-center">
-              <button
-                onClick={revealResults}
-                disabled={Object.keys(votes).length < activePlayers.length}
-                className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-8 py-4 rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:from-green-600 hover:to-emerald-700 transition-all duration-300 transform hover:scale-105 disabled:hover:scale-100"
-              >
-                كشف النتائج 🎭
-              </button>
-            </div>
-          </div>
-        </div>
+  const renderHomePage = () => (
+    <div className="space-y-8">
+      <div className="text-center">
+        <h2 className="text-4xl font-bold text-gray-800 dark:text-white mb-4">
+          مرحباً بك في منصة الألعاب الذكية
+        </h2>
+        <p className="text-xl text-gray-600 dark:text-gray-300 mb-8">
+          استمتع بمجموعة متنوعة من الألعاب الفردية والجماعية
+        </p>
       </div>
-    );
-  }
-
-  if (gamePhase === 'reveal') {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-teal-900">
-        <div className="container mx-auto px-6 py-8">
-          <button
-            onClick={onBack}
-            className="mb-8 bg-white/20 backdrop-blur-sm text-white px-6 py-3 rounded-xl hover:bg-white/30 transition-all duration-300 flex items-center gap-2"
-          >
-            <Home size={20} />
-            العودة للرئيسية
-          </button>
-          
-          <div className="max-w-2xl mx-auto text-center">
-            <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-8 border border-white/20 mb-8">
-              <h2 className="text-4xl font-bold text-white mb-6">🎉 انتهت اللعبة!</h2>
-              
-              <div className="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-2xl p-6 mb-6">
-                <p className="text-2xl font-bold text-gray-900 mb-2">الكلمة كانت:</p>
-                <p className="text-3xl font-bold text-gray-900">{currentWord}</p>
-              </div>
-              
-              <div className="bg-gradient-to-r from-red-500 to-pink-600 rounded-2xl p-6 mb-6">
-                <p className="text-xl font-bold text-white mb-2">الدخيل كان:</p>
-                <p className="text-2xl font-bold text-white">{outsider}</p>
-              </div>
-              
-              <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl p-6 mb-8">
-                <p className="text-2xl font-bold text-white">{gameResult}</p>
-              </div>
-              
-              <div className="flex gap-4">
-                <button
-                  onClick={resetGame}
-                  className="flex-1 bg-gradient-to-r from-blue-500 to-purple-600 text-white py-4 rounded-xl font-bold hover:from-blue-600 hover:to-purple-700 transition-all duration-300 transform hover:scale-105"
-                >
-                  لعبة جديدة 🎮
-                </button>
-                <button
-                  onClick={onBack}
-                  className="flex-1 bg-gradient-to-r from-gray-500 to-gray-600 text-white py-4 rounded-xl font-bold hover:from-gray-600 hover:to-gray-700 transition-all duration-300 transform hover:scale-105"
-                >
-                  العودة للرئيسية 🏠
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-};
-
-const LetterGame = ({ onBack }) => {
-  const [currentLetter, setCurrentLetter] = useState('');
-  const [answers, setAnswers] = useState({ name: '', animal: '', object: '', place: '' });
-  const [score, setScore] = useState(0);
-  const [gameStarted, setGameStarted] = useState(false);
-
-  const arabicLetters = ['أ', 'ب', 'ت', 'ث', 'ج', 'ح', 'خ', 'د', 'ذ', 'ر', 'ز', 'س', 'ش', 'ص', 'ض', 'ط', 'ظ', 'ع', 'غ', 'ف', 'ق', 'ك', 'ل', 'م', 'ن', 'ه', 'و', 'ي'];
-
-  const startGame = () => {
-    const randomLetter = arabicLetters[Math.floor(Math.random() * arabicLetters.length)];
-    setCurrentLetter(randomLetter);
-    setGameStarted(true);
-    setAnswers({ name: '', animal: '', object: '', place: '' });
-  };
-
-  const submitAnswers = () => {
-    let points = 0;
-    Object.values(answers).forEach(answer => {
-      if (answer.trim() && answer.trim().startsWith(currentLetter)) {
-        points += 10;
-      }
-    });
-    setScore(prev => prev + points);
-    alert(`حصلت على ${points} نقطة!`);
-    startGame();
-  };
-
-  const updateAnswer = (category, value) => {
-    setAnswers(prev => ({ ...prev, [category]: value }));
-  };
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-green-900 via-teal-900 to-blue-900">
-      <div className="container mx-auto px-6 py-8">
-        <button
-          onClick={onBack}
-          className="mb-8 bg-white/20 backdrop-blur-sm text-white px-6 py-3 rounded-xl hover:bg-white/30 transition-all duration-300 flex items-center gap-2"
-        >
-          <Home size={20} />
-          العودة للرئيسية
-        </button>
+      
+      <div className="grid md:grid-cols-2 gap-8">
+        <Card className="text-center hover:scale-105 transition-transform duration-300">
+          <User className="w-16 h-16 text-blue-500 mx-auto mb-4" />
+          <h3 className="text-2xl font-bold text-gray-800 dark:text-white mb-4">ألعاب فردية</h3>
+          <p className="text-gray-600 dark:text-gray-300 mb-6">
+            اختبر معلوماتك وذكاءك مع مجموعة من الأسئلة المتنوعة
+          </p>
+          <Button onClick={() => setCurrentPage('individual')} size="lg">
+            ابدأ اللعب
+          </Button>
+        </Card>
         
-        <div className="max-w-2xl mx-auto bg-white/10 backdrop-blur-lg rounded-3xl p-8 border border-white/20">
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-white mb-4">📝 حرف - اسم - حيوان - جماد - بلاد</h1>
-            <div className="flex items-center justify-center gap-4">
-              <Medal className="text-yellow-400" size={24} />
-              <span className="text-xl font-bold text-white">النقاط: {score}</span>
+        <Card className="text-center hover:scale-105 transition-transform duration-300">
+          <Users className="w-16 h-16 text-green-500 mx-auto mb-4" />
+          <h3 className="text-2xl font-bold text-gray-800 dark:text-white mb-4">ألعاب جماعية</h3>
+          <p className="text-gray-600 dark:text-gray-300 mb-6">
+            العب مع الأصدقاء في ألعاب مثيرة مثل لعبة الذئب والقرية
+          </p>
+          <Button onClick={() => setCurrentPage('group')} variant="success" size="lg">
+            العب مع الأصدقاء
+          </Button>
+        </Card>
+      </div>
+    </div>
+  );
+
+  const renderIndividualGames = () => (
+    <div className="space-y-8">
+      <div className="text-center">
+        <h2 className="text-3xl font-bold text-gray-800 dark:text-white mb-4">الألعاب الفردية</h2>
+        <p className="text-gray-600 dark:text-gray-300">اختبر معلوماتك وحقق أعلى النقاط</p>
+      </div>
+      
+      {!gameStarted ? (
+        <Card className="text-center max-w-2xl mx-auto">
+          <h3 className="text-2xl font-bold text-gray-800 dark:text-white mb-4">لعبة الأسئلة</h3>
+          <p className="text-gray-600 dark:text-gray-300 mb-6">
+            أجب على الأسئلة واحصل على أعلى نقاط ممكنة
+          </p>
+          <div className="flex justify-center space-x-4 rtl:space-x-reverse">
+            <Button onClick={startIndividualGame} size="lg">
+              <Play className="w-5 h-5 ml-2" />
+              ابدأ اللعبة
+            </Button>
+          </div>
+          {score > 0 && (
+            <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900 rounded-xl">
+              <p className="text-blue-600 dark:text-blue-300 font-semibold">
+                آخر نتيجة: {score} من {questions.length}
+              </p>
+            </div>
+          )}
+        </Card>
+      ) : (
+        <Card className="max-w-3xl mx-auto">
+          <div className="mb-6">
+            <div className="flex justify-between items-center mb-4">
+              <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                السؤال {currentQuestion + 1} من {questions.length}
+              </span>
+              <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                النقاط: {score}
+              </span>
+            </div>
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+              <div 
+                className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${((currentQuestion + 1) / questions.length) * 100}%` }}
+              ></div>
             </div>
           </div>
           
-          {!gameStarted ? (
-            <div className="text-center">
+          <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-6 text-center">
+            {questions[currentQuestion].text}
+          </h3>
+          
+          <div className="grid gap-4">
+            {questions[currentQuestion].options.map((option, index) => (
               <button
-                onClick={startGame}
-                className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-8 py-4 rounded-xl text-xl font-bold hover:from-green-600 hover:to-emerald-700 transition-all duration-300 transform hover:scale-105"
+                key={index}
+                onClick={() => handleAnswerSelect(index)}
+                disabled={showResult}
+                className={`p-4 rounded-xl text-right transition-all duration-300 transform hover:scale-102 ${
+                  showResult
+                    ? index === questions[currentQuestion].correctAnswer
+                      ? 'bg-green-100 dark:bg-green-900 border-2 border-green-500 text-green-700 dark:text-green-300'
+                      : selectedAnswer === index
+                      ? 'bg-red-100 dark:bg-red-900 border-2 border-red-500 text-red-700 dark:text-red-300'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                    : 'bg-gray-50 dark:bg-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900 border-2 border-transparent hover:border-blue-300 text-gray-800 dark:text-white'
+                }`}
               >
-                ابدأ اللعبة 🎯
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              <div className="text-center">
-                <div className="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-2xl p-6 mb-6">
-                  <h2 className="text-4xl font-bold text-gray-900">الحرف: {currentLetter}</h2>
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">{option}</span>
+                  {showResult && (
+                    <span className="ml-2">
+                      {index === questions[currentQuestion].correctAnswer ? (
+                        <CheckCircle className="w-5 h-5 text-green-500" />
+                      ) : selectedAnswer === index ? (
+                        <XCircle className="w-5 h-5 text-red-500" />
+                      ) : null}
+                    </span>
+                  )}
                 </div>
+              </button>
+            ))}
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+
+  const renderGroupGames = () => (
+    <div className="space-y-8">
+      <div className="text-center">
+        <h2 className="text-3xl font-bold text-gray-800 dark:text-white mb-4">الألعاب الجماعية</h2>
+        <p className="text-gray-600 dark:text-gray-300">العب مع الأصدقاء واستمتع بوقتك</p>
+      </div>
+      
+      {gamePhase === 'setup' && (
+        <div className="grid md:grid-cols-2 gap-8">
+          <Card>
+            <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">إضافة اللاعبين</h3>
+            <div className="space-y-4">
+              <div className="flex space-x-2 rtl:space-x-reverse">
+                <input
+                  type="text"
+                  value={newPlayerName}
+                  onChange={(e) => setNewPlayerName(e.target.value)}
+                  placeholder="اسم اللاعب"
+                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  onKeyPress={(e) => e.key === 'Enter' && addPlayer()}
+                />
+                <Button onClick={addPlayer} size="sm">إضافة</Button>
               </div>
               
-              <div className="space-y-4">
-                {[
-                  { key: 'name', label: 'اسم إنسان', icon: '👤' },
-                  { key: 'animal', label: 'حيوان', icon: '🐾' },
-                  { key: 'object', label: 'جماد', icon: '📦' },
-                  { key: 'place', label: 'بلد أو مكان', icon: '🏙️' }
-                ].map(({ key, label, icon }) => (
-                  <div key={key} className="space-y-2">
-                    <label className="text-white font-bold flex items-center gap-2">
-                      <span>{icon}</span>
-                      {label}
-                    </label>
-                    <input
-                      type="text"
-                      value={answers[key]}
-                      onChange={(e) => updateAnswer(key, e.target.value)}
-                      className="w-full p-4 rounded-xl bg-white/20 backdrop-blur-sm text-white placeholder-white/60 border border-white/30 focus:border-white/50 focus:outline-none focus:ring-2 focus:ring-white/20"
-                      placeholder={`${label} يبدأ بحرف ${currentLetter}`}
-                    />
+              <div className="space-y-2 max-h-40 overflow-y-auto">
+                {players.map((player) => (
+                  <div key={player.id} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <span className="font-medium text-gray-800 dark:text-white">{player.name}</span>
+                    <button
+                      onClick={() => removePlayer(player.id)}
+                      className="text-red-500 hover:text-red-700 transition-colors"
+                    >
+                      <XCircle className="w-5 h-5" />
+                    </button>
                   </div>
                 ))}
               </div>
               
-              <button
-                onClick={submitAnswers}
-                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-4 rounded-xl font-bold hover:from-purple-700 hover:to-pink-700 transition-all duration-300 transform hover:scale-105"
-              >
-                إرسال الإجابات ✨
-              </button>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                عدد اللاعبين: {players.length}
+              </p>
             </div>
-          )}
+          </Card>
+          
+          <Card>
+            <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">اختر اللعبة</h3>
+            <div className="space-y-4">
+              <div className="p-4 border border-gray-200 dark:border-gray-600 rounded-lg">
+                <h4 className="font-bold text-gray-800 dark:text-white mb-2">لعبة الذئب والقرية</h4>
+                <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
+                  لعبة استراتيجية مثيرة حيث يحاول الذئاب القضاء على القرويين
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                  الحد الأدنى: 4 لاعبين
+                </p>
+                <Button 
+                  onClick={startLoupGarou} 
+                  disabled={players.length < 4}
+                  className="w-full"
+                >
+                  ابدأ اللعبة
+                </Button>
+              </div>
+              
+              <div className="p-4 border border-gray-200 dark:border-gray-600 rounded-lg">
+                <h4 className="font-bold text-gray-800 dark:text-white mb-2">ماكش من الحومة</h4>
+                <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
+                  لعبة ممتعة حيث يحاول اللاعبون اكتشاف من هو الغريب بينهم
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                  الحد الأدنى: 3 لاعبين
+                </p>
+                <Button 
+                  onClick={startMakeshGame} 
+                  disabled={players.length < 3}
+                  variant="success"
+                  className="w-full"
+                >
+                  ابدأ اللعبة
+                </Button>
+              </div>
+            </div>
+          </Card>
         </div>
+      )}
+      
+      {gamePhase === 'playing' && currentGame === 'loup-garou' && (
+        <Card className="max-w-4xl mx-auto">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-2xl font-bold text-gray-800 dark:text-white">لعبة الذئب والقرية</h3>
+            <Button onClick={resetGame} variant="secondary" size="sm">
+              <RotateCcw className="w-4 h-4 ml-2" />
+              إعادة تشغيل
+            </Button>
+          </div>
+          
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {players.map((player) => (
+              <div key={player.id} className="p-4 bg-gray-50 dark:bg-gray-700 rounded-xl">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="font-bold text-gray-800 dark:text-white">{player.name}</span>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    player.role === 'ذئب' 
+                      ? 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300'
+                      : 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
+                  }`}>
+                    {player.role}
+                  </span>
+                </div>
+                <div className="flex items-center space-x-2 rtl:space-x-reverse">
+                  <div className={`w-3 h-3 rounded-full ${
+                    player.isAlive ? 'bg-green-500' : 'bg-red-500'
+                  }`}></div>
+                  <span className="text-sm text-gray-600 dark:text-gray-300">
+                    {player.isAlive ? 'حي' : 'ميت'}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900 rounded-xl">
+            <h4 className="font-bold text-blue-800 dark:text-blue-200 mb-2">قواعد اللعبة:</h4>
+            <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+              <li>• الذئاب يحاولون القضاء على القرويين</li>
+              <li>• العراف يمكنه معرفة هوية لاعب واحد كل ليلة</li>
+              <li>• الطبيب يمكنه حماية لاعب واحد كل ليلة</li>
+              <li>• الهدف: القضاء على جميع الذئاب أو جميع القرويين</li>
+            </ul>
+          </div>
+        </Card>
+      )}
+      
+      {gamePhase === 'playing' && currentGame === 'makesh' && (
+        <Card className="max-w-4xl mx-auto">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-2xl font-bold text-gray-800 dark:text-white">ماكش من الحومة</h3>
+            <Button onClick={resetGame} variant="secondary" size="sm">
+              <RotateCcw className="w-4 h-4 ml-2" />
+              إعادة تشغيل
+            </Button>
+          </div>
+          
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {players.map((player) => (
+              <div key={player.id} className="p-4 bg-gray-50 dark:bg-gray-700 rounded-xl">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="font-bold text-gray-800 dark:text-white">{player.name}</span>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    player.role === 'الغريب' 
+                      ? 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300'
+                      : 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
+                  }`}>
+                    {player.role}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          <div className="mt-6 p-4 bg-green-50 dark:bg-green-900 rounded-xl">
+            <h4 className="font-bold text-green-800 dark:text-green-200 mb-2">قواعد اللعبة:</h4>
+            <ul className="text-sm text-green-700 dark:text-green-300 space-y-1">
+              <li>• هناك لاعب واحد "غريب" والباقي "من الحومة"</li>
+              <li>• الهدف: اكتشاف من هو الغريب</li>
+              <li>• الغريب يحاول أن يندمج مع المجموعة</li>
+              <li>• اللاعبون يصوتون لاختيار الغريب</li>
+            </ul>
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+
+  const renderLeaderboard = () => (
+    <div className="space-y-8">
+      <div className="text-center">
+        <h2 className="text-3xl font-bold text-gray-800 dark:text-white mb-4">المتصدرين</h2>
+        <p className="text-gray-600 dark:text-gray-300">أفضل اللاعبين في المنصة</p>
       </div>
+      
+      <Card className="max-w-2xl mx-auto">
+        <div className="text-center py-12">
+          <Trophy className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
+          <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">قريباً</h3>
+          <p className="text-gray-600 dark:text-gray-300">
+            سيتم إضافة نظام المتصدرين قريباً لتتبع أفضل النتائج
+          </p>
+        </div>
+      </Card>
+    </div>
+  );
+
+  return (
+    <div className={`min-h-screen transition-colors duration-300 ${
+      isDarkMode ? 'dark bg-gray-900' : 'bg-gray-50'
+    }`}>
+      {renderNavigation()}
+      
+      <main className="max-w-7xl mx-auto px-4 py-8">
+        {currentPage === 'home' && renderHomePage()}
+        {currentPage === 'individual' && renderIndividualGames()}
+        {currentPage === 'group' && renderGroupGames()}
+        {currentPage === 'leaderboard' && renderLeaderboard()}
+      </main>
     </div>
   );
 };
-
-function App() {
-  const [currentGame, setCurrentGame] = useState(null);
-
-  const games = [
-    {
-      id: 'bara-salfa',
-      title: 'برا السالفة',
-      description: 'اللعبة الجزائرية الأصيلة للذكاء والخداع. اكتشف من هو الدخيل قبل أن يكتشف الكلمة السرية!',
-      icon: Brain,
-      players: '3-8 لاعبين',
-      difficulty: 4,
-      featured: true
-    },
-    {
-      id: 'letters',
-      title: 'حرف - حيوان - جماد',
-      description: 'اللعبة الكلاسيكية بأسلوب عصري. اختبر سرعة بديهتك ومعلوماتك!',
-      icon: Lightbulb,
-      players: '1+ لاعب',
-      difficulty: 2
-    },
-    {
-      id: 'riddles',
-      title: 'ألغاز الحومة',
-      description: 'مجموعة من الألغاز الجزائرية الشعبية لتحدي عقلك وتنمية ذكائك.',
-      icon: GamepadIcon,
-      players: '1+ لاعب',
-      difficulty: 3
-    },
-    {
-      id: 'memory',
-      title: 'ذاكرة الأبطال',
-      description: 'اختبر قوة ذاكرتك مع هذه اللعبة المسلية والمفيدة.',
-      icon: Medal,
-      players: '1+ لاعب',
-      difficulty: 2
-    }
-  ];
-
-  const renderGame = () => {
-    switch (currentGame) {
-      case 'bara-salfa':
-        return <BaraSalfaGame onBack={() => setCurrentGame(null)} />;
-      case 'letters':
-        return <LetterGame onBack={() => setCurrentGame(null)} />;
-      default:
-        return (
-          <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-teal-900 flex items-center justify-center">
-            <div className="text-center py-20">
-              <h2 className="text-3xl font-bold text-white mb-4">قريباً...</h2>
-              <p className="text-white/80 mb-6">هذه اللعبة قيد التطوير</p>
-              <button
-                onClick={() => setCurrentGame(null)}
-                className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-xl font-bold hover:from-purple-700 hover:to-pink-700 transition-all duration-300"
-              >
-                العودة للرئيسية
-              </button>
-            </div>
-          </div>
-        );
-    }
-  };
-
-  if (currentGame) {
-    return renderGame();
-  }
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900">
-      {/* Header */}
-      <header className="bg-white/10 backdrop-blur-lg border-b border-white/20 sticky top-0 z-50">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="bg-gradient-to-br from-yellow-400 to-orange-500 p-3 rounded-2xl">
-                <Brain size={32} className="text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-white">ألعاب الحومة</h1>
-                <p className="text-white/70 text-sm">ألعاب جزائرية أصيلة للذكاء والتسلية</p>
-              </div>
-            </div>
-            <div className="hidden md:flex items-center gap-6">
-              <div className="flex items-center gap-2 text-white/80">
-                <Users size={20} />
-                <span>ألعاب جماعية</span>
-              </div>
-              <div className="flex items-center gap-2 text-white/80">
-                <User size={20} />
-                <span>ألعاب فردية</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Hero Section */}
-      <section className="py-20 text-center">
-        <div className="container mx-auto px-6">
-          <h2 className="text-5xl md:text-7xl font-bold text-white mb-6 leading-tight">
-            أهلاً وسهلاً في
-            <span className="bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent"> ألعاب الحومة</span>
-          </h2>
-          <p className="text-xl text-white/80 mb-12 max-w-3xl mx-auto leading-relaxed">
-            منصة الألعاب الجزائرية الأولى للتسلية والذكاء. استمتع بألعاب تراثية شعبية بلمسة عصرية مع أصدقائك وعائلتك
-          </p>
-          <div className="flex flex-wrap justify-center gap-4">
-            <div className="bg-white/20 backdrop-blur-sm rounded-full px-6 py-3 text-white border border-white/30">
-              🎭 برا السالفة الأصلية
-            </div>
-            <div className="bg-white/20 backdrop-blur-sm rounded-full px-6 py-3 text-white border border-white/30">
-              🎮 تصميم حديث وأنيق
-            </div>
-            <div className="bg-white/20 backdrop-blur-sm rounded-full px-6 py-3 text-white border border-white/30">
-              👥 للأصدقاء والعائلة
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Games Grid */}
-      <section className="py-16">
-        <div className="container mx-auto px-6">
-          <div className="text-center mb-16">
-            <h3 className="text-4xl font-bold text-white mb-4">مجموعة الألعاب</h3>
-            <p className="text-white/80 text-lg max-w-2xl mx-auto">
-              اختر لعبتك المفضلة واستمتع بوقت رائع مع الأصدقاء والعائلة
-            </p>
-          </div>
-          
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
-            {games.map((game) => (
-              <GameCard
-                key={game.id}
-                {...game}
-                onClick={() => setCurrentGame(game.id)}
-              />
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section className="py-20 bg-white/5 backdrop-blur-sm">
-        <div className="container mx-auto px-6">
-          <div className="text-center mb-16">
-            <h3 className="text-4xl font-bold text-white mb-4">لماذا ألعاب الحومة؟</h3>
-          </div>
-          
-          <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
-            <div className="text-center group">
-              <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-4 rounded-2xl mx-auto w-16 h-16 flex items-center justify-center mb-6 group-hover:scale-110 transition-all duration-300">
-                <Brain size={32} className="text-white" />
-              </div>
-              <h4 className="text-xl font-bold text-white mb-3">تنمية الذكاء</h4>
-              <p className="text-white/80">ألعاب مصممة لتحفيز التفكير الإبداعي والمنطقي</p>
-            </div>
-            
-            <div className="text-center group">
-              <div className="bg-gradient-to-br from-blue-500 to-purple-600 p-4 rounded-2xl mx-auto w-16 h-16 flex items-center justify-center mb-6 group-hover:scale-110 transition-all duration-300">
-                <Users size={32} className="text-white" />
-              </div>
-              <h4 className="text-xl font-bold text-white mb-3">تفاعل اجتماعي</h4>
-              <p className="text-white/80">استمتع مع الأصدقاء والعائلة في جو من المرح</p>
-            </div>
-            
-            <div className="text-center group">
-              <div className="bg-gradient-to-br from-orange-500 to-red-600 p-4 rounded-2xl mx-auto w-16 h-16 flex items-center justify-center mb-6 group-hover:scale-110 transition-all duration-300">
-                <Star size={32} className="text-white" />
-              </div>
-              <h4 className="text-xl font-bold text-white mb-3">تراث جزائري</h4>
-              <p className="text-white/80">ألعاب مستوحاة من التراث الجزائري الأصيل</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="bg-black/20 backdrop-blur-sm py-12 border-t border-white/20">
-        <div className="container mx-auto px-6 text-center">
-          <div className="flex items-center justify-center gap-4 mb-6">
-            <div className="bg-gradient-to-br from-yellow-400 to-orange-500 p-2 rounded-xl">
-              <Brain size={24} className="text-white" />
-            </div>
-            <h4 className="text-xl font-bold text-white">ألعاب الحومة</h4>
-          </div>
-          <p className="text-white/70 mb-4">منصة الألعاب الجزائرية الأصيلة الأولى</p>
-          <p className="text-white/50 text-sm">© 2025 ألعاب الحومة - جميع الحقوق محفوظة</p>
-        </div>
-      </footer>
-    </div>
-  );
-}
 
 export default App;
